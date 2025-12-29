@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environments / secrets
+.env
+.env.*
+
+# Data lake and logs
+data/*
+!data/.gitkeep
+logs/
+
+# OS / tooling
+.DS_Store
+.idea/
+.vscode/*.log
+
+# Containers / builds
+*.egg-info/
+dist/
+build/

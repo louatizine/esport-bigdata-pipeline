@@ -1,0 +1,4 @@
+# Spark jobs dependencies (streaming + batch)
+pyspark==3.5.0
+kafka-python==2.0.2
+pyyaml==6.0.1

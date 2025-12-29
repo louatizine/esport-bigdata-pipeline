@@ -1,0 +1,6 @@
+# Placeholder for Kafka topic definitions (if you automate topic creation)
+# Example format:
+# topics:
+#   - name: esports.matches
+#     partitions: 3
+#     replication_factor: 1

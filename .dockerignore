@@ -1,0 +1,13 @@
+.git
+.github
+.gitignore
+.devcontainer
+.vscode
+node_modules
+dist
+build
+**/__pycache__
+*.pyc
+.env
+data
+logs
