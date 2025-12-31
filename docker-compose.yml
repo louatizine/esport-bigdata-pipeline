@@ -5,7 +5,7 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
-    profiles: ["core"]
+    profiles: [ "core" ]
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -18,13 +18,16 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
-    profiles: ["core"]
+    profiles: [ "core" ]
     depends_on:
       - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -36,7 +39,7 @@ services:
   spark-master:
     image: apache/spark:3.5.0
     container_name: spark-master
-    profiles: ["spark"]
+    profiles: [ "spark" ]
     environment:
       - SPARK_MODE=master
       - SPARK_MASTER_HOST=0.0.0.0
@@ -54,7 +57,7 @@ services:
   spark-worker:
     image: apache/spark:3.5.0
     container_name: spark-worker
-    profiles: ["spark"]
+    profiles: [ "spark" ]
     depends_on:
       - spark-master
     environment:
@@ -71,7 +74,7 @@ services:
   mongodb:
     image: mongo:6
     container_name: mongodb
-    profiles: ["optional"]
+    profiles: [ "optional" ]
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -84,7 +87,7 @@ services:
   postgres:
     image: postgres:15
     container_name: postgres
-    profiles: ["optional"]
+    profiles: [ "optional" ]
     restart: unless-stopped
     ports:
       - "5432:5432"
