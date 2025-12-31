@@ -36,6 +36,22 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    profiles: [ "core" ]
+    depends_on:
+      - kafka
+      - zookeeper
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    ports:
+      - "8090:8080"
+    restart: unless-stopped
+
   spark-master:
     image: apache/spark:3.5.0
     container_name: spark-master
