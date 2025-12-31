@@ -1,0 +1,19 @@
+# Phase 5: Storage & BI Integration Requirements
+
+# PostgreSQL JDBC Driver (loaded by Spark)
+# Note: JDBC driver should be added to Spark classpath via --jars or spark-defaults.conf
+
+# Python database connectors
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+
+# MongoDB driver
+pymongo==4.6.1
+
+# Streamlit and visualization
+streamlit==1.29.0
+plotly==5.18.0
+pandas==2.1.4
+
+# Additional data processing
+numpy==1.26.2
