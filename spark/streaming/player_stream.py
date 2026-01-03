@@ -47,7 +47,7 @@ class PlayerStreamProcessor:
             spark: SparkSession (will create one if not provided)
         """
         self.spark = spark or create_spark_session("PlayerStreamProcessor")
-        self.topic = os.getenv("KAFKA_TOPIC_PLAYERS", "esports-players")
+        self.topic = os.getenv("KAFKA_TOPIC_PLAYERS", "esport-players")
         self.schema = get_player_schema()
         logger.info(
             f"Initialized PlayerStreamProcessor for topic: {self.topic}")

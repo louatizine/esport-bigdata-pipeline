@@ -5,6 +5,8 @@ Implements rate limiting, error handling, and proper logging.
 """
 
 from __future__ import annotations
+from src.common.logging_config import configure_logging
+from src.ingestion.kafka_config import KafkaConfig
 
 import logging
 import os
@@ -13,13 +15,16 @@ import time
 from typing import List, Dict, Any, Optional
 
 import requests
+from dotenv import load_dotenv
 from kafka import KafkaProducer
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Load environment variables from .env file
+load_dotenv()
 
-from src.common.logging_config import configure_logging
-from src.ingestion.kafka_config import KafkaConfig
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../..")))
+
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +65,8 @@ class RiotAPIClient:
         elapsed = time.time() - self.last_request_time
         if elapsed < min_interval:
             sleep_time = min_interval - elapsed
-            logger.debug("Rate limiting: sleeping for %.3f seconds", sleep_time)
+            logger.debug(
+                "Rate limiting: sleeping for %.3f seconds", sleep_time)
             time.sleep(sleep_time)
         self.last_request_time = time.time()
 
@@ -90,41 +96,76 @@ class RiotAPIClient:
                     return response.json()
                 elif response.status_code == 429:
                     retry_after = int(response.headers.get("Retry-After", 10))
-                    logger.warning("Rate limited. Waiting %d seconds...", retry_after)
+                    logger.warning(
+                        "Rate limited. Waiting %d seconds...", retry_after)
                     time.sleep(retry_after)
                 elif response.status_code == 404:
                     logger.warning("Resource not found: %s", url)
                     return None
                 else:
-                    logger.error("HTTP %d: %s", response.status_code, response.text)
+                    logger.error(
+                        "HTTP %d: %s", response.status_code, response.text)
                     if attempt < retries - 1:
                         time.sleep(2 ** attempt)  # Exponential backoff
                     else:
                         return None
 
             except requests.RequestException as e:
-                logger.error("Request failed (attempt %d/%d): %s", attempt + 1, retries, e)
+                logger.error("Request failed (attempt %d/%d): %s",
+                             attempt + 1, retries, e)
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)
 
         return None
 
+    def get_account_by_riot_id(self, game_name: str, tag_line: str) -> Optional[Dict[str, Any]]:
+        """Get account data by Riot ID (new API).
+
+        Parameters
+        ----------
+        game_name : str
+            Game name part of Riot ID (e.g., "Doublelift").
+        tag_line : str
+            Tag line part of Riot ID (e.g., "NA1").
+
+        Returns
+        -------
+        Optional[Dict[str, Any]]
+            Account data including puuid, or None.
+        """
+        url = f"{self.base_url_regional}/riot/account/v1/accounts/by-riot-id/{game_name}/{tag_line}"
+        logger.info("Fetching account: %s#%s", game_name, tag_line)
+        return self._make_request(url)
+
     def get_summoner_by_name(self, summoner_name: str) -> Optional[Dict[str, Any]]:
-        """Get summoner data by summoner name.
+        """Get summoner data by summoner name (legacy - prefer Riot ID).
 
         Parameters
         ----------
         summoner_name : str
-            Summoner name (e.g., "Faker").
+            Summoner name (e.g., "Faker"). For new API, use format "GameName#TAG".
 
         Returns
         -------
         Optional[Dict[str, Any]]
             Summoner data including puuid, or None.
         """
-        url = f"{self.base_url_platform}/lol/summoner/v4/summoners/by-name/{summoner_name}"
-        logger.info("Fetching summoner: %s", summoner_name)
-        return self._make_request(url)
+        # Check if summoner_name contains # (Riot ID format)
+        if "#" in summoner_name:
+            game_name, tag_line = summoner_name.split("#", 1)
+            return self.get_account_by_riot_id(game_name, tag_line)
+        else:
+            # Try old API first (will likely fail with 403)
+            url = f"{self.base_url_platform}/lol/summoner/v4/summoners/by-name/{summoner_name}"
+            logger.info("Fetching summoner: %s", summoner_name)
+            result = self._make_request(url)
+
+            # If old API fails, try with default tag
+            if result is None:
+                logger.info(
+                    "Old API failed, trying Riot ID format with default tag NA1")
+                return self.get_account_by_riot_id(summoner_name, "NA1")
+            return result
 
     def get_match_ids_by_puuid(
         self, puuid: str, count: int = 20, start: int = 0
@@ -211,7 +252,8 @@ class RiotKafkaProducer:
             )
             self.producer.flush()
             self.messages_sent += 1
-            logger.info("Published match %s to Kafka topic: %s", match_id, self.kafka_config.topic_matches)
+            logger.info("Published match %s to Kafka topic: %s",
+                        match_id, self.kafka_config.topic_matches)
             return True
         except Exception as e:
             logger.error("Failed to publish match to Kafka: %s", e)
@@ -245,10 +287,12 @@ class RiotKafkaProducer:
             logger.error("No PUUID found for summoner: %s", summoner_name)
             return 0
 
-        logger.info("Found summoner %s with PUUID: %s", summoner_name, puuid[:8])
+        logger.info("Found summoner %s with PUUID: %s",
+                    summoner_name, puuid[:8])
 
         # Step 2: Get list of match IDs
-        match_ids = self.riot_client.get_match_ids_by_puuid(puuid, count=match_count)
+        match_ids = self.riot_client.get_match_ids_by_puuid(
+            puuid, count=match_count)
         if not match_ids:
             logger.warning("No matches found for summoner: %s", summoner_name)
             return 0
@@ -258,14 +302,16 @@ class RiotKafkaProducer:
         # Step 3: Fetch and publish each match
         successful_publishes = 0
         for i, match_id in enumerate(match_ids, 1):
-            logger.info("Processing match %d/%d: %s", i, len(match_ids), match_id)
+            logger.info("Processing match %d/%d: %s",
+                        i, len(match_ids), match_id)
 
             match_details = self.riot_client.get_match_details(match_id)
             if match_details:
                 if self.publish_match(match_details):
                     successful_publishes += 1
             else:
-                logger.warning("Could not retrieve details for match: %s", match_id)
+                logger.warning(
+                    "Could not retrieve details for match: %s", match_id)
 
             # Small delay between matches to be respectful to API
             time.sleep(0.5)
@@ -279,7 +325,8 @@ class RiotKafkaProducer:
 
     def close(self) -> None:
         """Close Kafka producer and clean up resources."""
-        logger.info("Closing Kafka producer. Total messages sent: %d", self.messages_sent)
+        logger.info(
+            "Closing Kafka producer. Total messages sent: %d", self.messages_sent)
         self.producer.close()
 
 
@@ -320,8 +367,10 @@ def main():
         test_summoner = os.getenv("TEST_SUMMONER_NAME", "Doublelift")
         match_count = int(os.getenv("MATCH_COUNT", "10"))
 
-        logger.info("Ingesting %d matches for summoner: %s", match_count, test_summoner)
-        matches_published = producer.ingest_matches_for_summoner(test_summoner, match_count)
+        logger.info("Ingesting %d matches for summoner: %s",
+                    match_count, test_summoner)
+        matches_published = producer.ingest_matches_for_summoner(
+            test_summoner, match_count)
 
         logger.info("=" * 60)
         logger.info("INGESTION SUMMARY")
@@ -342,4 +391,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

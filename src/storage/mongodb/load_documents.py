@@ -34,18 +34,28 @@ class MongoDocumentLoader:
         """
         self.spark = spark or get_spark_session("MongoDocumentLoader")
 
-        # MongoDB connection settings
-        self.mongo_host = os.getenv("MONGO_HOST", "localhost")
-        self.mongo_port = int(os.getenv("MONGO_PORT", "27017"))
-        self.mongo_user = os.getenv("MONGO_USER", "")
-        self.mongo_password = os.getenv("MONGO_PASSWORD", "")
-        self.mongo_db = os.getenv("MONGO_DATABASE", "esports_analytics")
+        # MongoDB connection settings - support both Atlas and local
+        # Priority: MONGODB_ATLAS_URI > individual settings > defaults
+        atlas_uri = os.getenv("MONGODB_ATLAS_URI", "")
 
-        # Build connection URI
-        if self.mongo_user and self.mongo_password:
-            self.mongo_uri = f"mongodb://{self.mongo_user}:{self.mongo_password}@{self.mongo_host}:{self.mongo_port}"
+        if atlas_uri:
+            # Use MongoDB Atlas connection string
+            self.mongo_uri = atlas_uri
+            logger.info("Using MongoDB Atlas connection")
         else:
-            self.mongo_uri = f"mongodb://{self.mongo_host}:{self.mongo_port}"
+            # Build connection URI from individual settings (local MongoDB)
+            self.mongo_host = os.getenv("MONGO_HOST", "localhost")
+            self.mongo_port = int(os.getenv("MONGO_PORT", "27017"))
+            self.mongo_user = os.getenv("MONGO_USER", "")
+            self.mongo_password = os.getenv("MONGO_PASSWORD", "")
+
+            if self.mongo_user and self.mongo_password:
+                self.mongo_uri = f"mongodb://{self.mongo_user}:{self.mongo_password}@{self.mongo_host}:{self.mongo_port}"
+            else:
+                self.mongo_uri = f"mongodb://{self.mongo_host}:{self.mongo_port}"
+            logger.info("Using local MongoDB connection")
+
+        self.mongo_db = os.getenv("MONGODB_DATABASE", "esports_analytics")
 
         # Data paths
         self.analytics_path = os.getenv(

@@ -44,7 +44,7 @@ class MatchStreamProcessor:
             spark: SparkSession (will create one if not provided)
         """
         self.spark = spark or create_spark_session("MatchStreamProcessor")
-        self.topic = os.getenv("KAFKA_TOPIC_MATCHES", "esports-matches")
+        self.topic = os.getenv("KAFKA_TOPIC_MATCHES", "esport-matches")
         self.schema = get_match_schema()
         logger.info(
             f"Initialized MatchStreamProcessor for topic: {self.topic}")

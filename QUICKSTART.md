@@ -1,293 +1,232 @@
-# Quick Start Guide
+# 🚀 Quick Start Guide
 
-This guide will help you get the Esport Big Data Pipeline up and running in minutes.
+This guide will help you get the Esports Big Data Pipeline up and running in minutes.
 
 ## Prerequisites
 
-- ✅ Docker and Docker Compose installed
-- ✅ GitHub Codespaces (recommended) or local development environment
-- ✅ Riot Games API key ([Get one here](https://developer.riotgames.com/))
-- ✅ Python 3.11+ (included in dev container)
+- Docker and Docker Compose installed
+- Python 3.9+ installed
+- Valid Riot API key ([Get one here](https://developer.riotgames.com/))
+- MongoDB Atlas account (free M0 tier) - Optional for cloud storage
 
-## 🚀 Quick Start (5 minutes)
+## 🎯 Step-by-Step Setup
 
-### 1. Clone the Repository
+### 1. Configure Environment Variables
 
-```bash
-git clone https://github.com/louatizine/esport-bigdata-pipeline.git
-cd esport-bigdata-pipeline
-```
-
-### 2. Start Core Services
-
-Start Kafka and Zookeeper:
+Create a `.env` file in the project root:
 
 ```bash
-docker compose --profile core up -d
+# Riot Games API
+RIOT_API_KEY=your_riot_api_key_here
+RIOT_REGION=asia
+RIOT_PLATFORM=kr
+
+# MongoDB Atlas (Optional - for cloud storage)
+MONGODB_ATLAS_URI=mongodb+srv://username:password@cluster.mongodb.net/
+MONGODB_DATABASE=esports_analytics
 ```
 
-**Expected output:**
-```
-✔ Container zookeeper  Started
-✔ Container kafka      Started
-```
+### 2. Start Infrastructure Services
 
-**Wait 15 seconds** for services to fully initialize.
-
-### 3. Install Python Dependencies
+Use the automated startup script for proper service initialization:
 
 ```bash
-pip install -r requirements/ingestion.txt
+./start_services.sh
 ```
 
-### 4. Configure Riot API Key
+This script will:
+- ✅ Start Kafka, Zookeeper, and Kafka-UI
+- ✅ Wait for Kafka to be fully ready
+- ✅ Create required Kafka topics
+- ✅ Verify all services are running
 
-Create your `.env` file:
+**Manual alternative:**
+```bash
+# Start services
+docker-compose --profile core up -d
+
+# Wait 15-30 seconds for Kafka to be ready
+
+# Create topics
+bash scripts/create_topics.sh
+```
+
+### 3. Verify Services
+
+Check that all services are running:
 
 ```bash
-cp .env.example .env
+docker-compose ps
 ```
 
-Edit `.env` and set your Riot API key:
+Expected services:
+- **kafka** - Up on port 9092
+- **zookeeper** - Up on port 2181
+- **kafka-ui** - Up on port 8090
 
-```bash
-RIOT_API_KEY=RGAPI-your-actual-key-here
-```
+Access Kafka UI: http://localhost:8090
 
-### 5. Validate Installation
+### 4. Ingest Data from Riot API
 
-Run the comprehensive validation script:
-
-```bash
-PYTHONPATH=$PWD KAFKA_BROKER=localhost:9092 python src/ingestion/validate_ingestion.py
-```
-
-**Expected output:**
-```
-✅ PASS: Kafka Broker
-✅ PASS: Topics Exist
-✅ PASS: Producer
-✅ PASS: Riot Api
-✅ PASS: Data Flow
-✅ PASS: Error Handling
-
-Result: 6/6 tests passed
-```
-
-### 6. Ingest Data from Riot API
+Fetch real match data and publish to Kafka:
 
 ```bash
 PYTHONPATH=$PWD python src/ingestion/riot_producer.py
 ```
 
-**What happens:**
-- Fetches match data from Riot API
-- Publishes JSON events to Kafka topics
-- Handles rate limiting automatically
-- Logs all operations
-
-## 🔍 Verify Data Flow
-
-### Check Kafka Topics
-
-```bash
-# List all topics
-docker exec kafka kafka-topics --bootstrap-server localhost:9092 --list
-
-# Expected output:
-# esport-matches
-# esport-players
-# esport-rankings
-```
-
-### Consume Messages
-
-```bash
-# Read messages from esport-matches topic
-docker exec kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic esport-matches \
-  --from-beginning \
-  --max-messages 5
-```
-
-### Check Service Status
-
-```bash
-docker ps
-```
+This will:
+- Fetch match data for professional players
+- Publish matches to `esport-matches` topic
+- Publish player stats to `esport-players` topic
 
 **Expected output:**
 ```
-CONTAINER ID   IMAGE                                 STATUS    PORTS
-abc123         confluentinc/cp-kafka:7.5.0           Up        0.0.0.0:9092->9092/tcp
-def456         confluentinc/cp-zookeeper:7.5.0       Up        0.0.0.0:2181->2181/tcp
+✅ Published match LR_4890238001 to Kafka
+✅ Published match KR_7463811087 to Kafka
+✅ Published 3 matches successfully
 ```
 
-## 🛠 Troubleshooting
+### 5. View Real-Time Dashboard
 
-### Issue: Kafka not reachable
+Launch the Streamlit dashboard to visualize Kafka data:
 
-**Symptom:** `NoBrokersAvailable` error
-
-**Solution:**
 ```bash
-# Restart services
-docker compose --profile core down
-docker compose --profile core up -d
-
-# Wait 15 seconds
-sleep 15
-
-# Re-run validation
-PYTHONPATH=$PWD KAFKA_BROKER=localhost:9092 python src/ingestion/validate_ingestion.py
+streamlit run streamlit_kafka_dashboard.py --server.port 8502
 ```
 
-### Issue: Riot API returns 403 Forbidden
+Access dashboard: http://localhost:8502
 
-**Symptom:** API validation fails with 403 status code
+The dashboard shows:
+- 📊 Real-time match statistics
+- 🎮 Champion pick rates
+- 📈 Gold difference trends
+- 🔄 Auto-refresh every 30 seconds
 
-**Possible causes:**
-1. Invalid API key
-2. API key expired
-3. Wrong region specified
+### 6. Process Data with Spark (Optional)
 
-**Solution:**
-1. Get a new API key from [Riot Developer Portal](https://developer.riotgames.com/)
-2. Update `.env` file with new key
-3. Check `RIOT_PLATFORM` and `RIOT_ROUTING` values in `.env`
+Run Spark streaming to process Kafka data into Parquet:
 
-### Issue: Topics don't exist
-
-**Solution:**
 ```bash
-# Topics are auto-created by Kafka
-# Or manually create them:
-docker exec kafka kafka-topics --bootstrap-server localhost:9092 \
-  --create --topic esport-matches --partitions 3 --replication-factor 1
-
-docker exec kafka kafka-topics --bootstrap-server localhost:9092 \
-  --create --topic esport-players --partitions 3 --replication-factor 1
-
-docker exec kafka kafka-topics --bootstrap-server localhost:9092 \
-  --create --topic esport-rankings --partitions 3 --replication-factor 1
+bash scripts/run_spark_streaming.sh
 ```
 
-### Issue: Python import errors
+This will:
+- Read from Kafka topics
+- Process and transform data
+- Write to Parquet files in `data/silver/`
 
-**Symptom:** `ModuleNotFoundError: No module named 'src'`
+### 7. Load to MongoDB Atlas (Optional)
 
-**Solution:**
+Upload processed analytics to MongoDB Atlas:
+
 ```bash
-# Always set PYTHONPATH
-export PYTHONPATH=/workspaces/esport-bigdata-pipeline
-
-# Or run with PYTHONPATH inline
-PYTHONPATH=$PWD python src/ingestion/riot_producer.py
+PYTHONPATH=$PWD python src/storage/storage_main.py
 ```
 
-## 📊 Next Steps
+## 📊 Architecture Overview
 
-### Start Spark Cluster (Phase 3)
-
-```bash
-docker compose --profile spark up -d
+```
+Riot API → Kafka → Spark → Parquet/MongoDB Atlas
+                    ↓
+             Streamlit Dashboard
 ```
 
-Access Spark UI:
-- Spark Master: http://localhost:8080
-- Spark Worker: http://localhost:8081
+## 🛠️ Common Commands
 
-### Run Batch Jobs
-
+### Stop All Services
 ```bash
-PYTHONPATH=$PWD python src/batch/jobs/batch_job_template.py
+docker-compose down
 ```
 
-### Deploy Streaming Jobs
-
+### Restart Services
 ```bash
-PYTHONPATH=$PWD python src/streaming/jobs/streaming_job_template.py
+docker-compose --profile core restart
 ```
 
-### Add Monitoring (Optional)
-
+### View Kafka Logs
 ```bash
-# Start MongoDB and PostgreSQL
-docker compose --profile optional up -d
-```
-
-## 🎯 Common Workflows
-
-### Daily Data Ingestion
-
-```bash
-# Start services if not running
-docker compose --profile core up -d
-
-# Run producer for specific summoner
-PYTHONPATH=$PWD python src/ingestion/riot_producer.py
-
-# Monitor Kafka messages
-docker exec kafka kafka-console-consumer \
-  --bootstrap-server localhost:9092 \
-  --topic esport-matches \
-  --from-beginning
-```
-
-### Clean Restart
-
-```bash
-# Stop all services
-docker compose --profile core --profile spark --profile optional down
-
-# Remove volumes (CAUTION: deletes all data)
-docker volume rm esport-bigdata-pipeline_kafka_data
-docker volume rm esport-bigdata-pipeline_zookeeper_data
-
-# Start fresh
-docker compose --profile core up -d
-```
-
-### View Logs
-
-```bash
-# Kafka logs
 docker logs kafka -f
-
-# Zookeeper logs
-docker logs zookeeper -f
-
-# All services
-docker compose logs -f
 ```
 
-## 📖 Additional Resources
+### Clean Data Directories
+```bash
+rm -rf data/silver/* data/gold/* data/checkpoints/*
+```
 
-- [Architecture Documentation](ARCHITECTURE.md)
-- [Ingestion Guide](INGESTION_GUIDE.md)
-- [Docker Commands Reference](DOCKER_COMMANDS.md)
-- [Setup Checklist](SETUP_CHECKLIST.md)
-- [Phase 2 Validation Results](PHASE2_VALIDATION_RESULTS.md)
+## 🔍 Troubleshooting
 
-## 🤝 Getting Help
+### Dashboard Shows "No Data Available"
 
-If you encounter issues:
+**Solution:** Ingest data first
+```bash
+PYTHONPATH=$PWD python src/ingestion/riot_producer.py
+```
 
-1. Check service status: `docker ps`
-2. View logs: `docker logs kafka`
-3. Run validation: `python src/ingestion/validate_ingestion.py`
-4. Consult [INGESTION_GUIDE.md](INGESTION_GUIDE.md)
-5. Review [PHASE2_VALIDATION_RESULTS.md](PHASE2_VALIDATION_RESULTS.md)
+### "NoBrokersAvailable" Error
 
-## ✅ Success Criteria
+**Solution 1:** Use the startup script (recommended)
+```bash
+./start_services.sh
+```
 
-You're ready to proceed if:
+**Solution 2:** Wait for Kafka to be fully ready
+```bash
+# Restart Kafka
+docker-compose restart kafka
 
-- ✅ All Docker containers are running
-- ✅ Validation script shows 6/6 tests passed
-- ✅ Kafka topics contain messages
-- ✅ No errors in `docker logs kafka`
-- ✅ Producer successfully ingests data
+# Wait 15-20 seconds before starting dashboard
+sleep 20
+streamlit run streamlit_kafka_dashboard.py --server.port 8502
+```
 
-**Congratulations!** Your Esport Big Data Pipeline is operational. 🎉
+The dashboard now has built-in retry logic (3 attempts with 2s delays).
+
+### Riot API Rate Limit Errors
+
+**Solution:** Wait 2 minutes between ingestion runs or use a production API key.
+
+### MongoDB Atlas SSL/TLS Issues in Devcontainer
+
+**Known Issue:** SSL certificate verification may fail in devcontainer environments.
+
+**Workaround:** Use local MongoDB for development:
+```bash
+docker-compose up -d mongodb
+# Update .env: MONGODB_URI=mongodb://localhost:27017
+```
+
+## 📁 Data Locations
+
+- **Raw Kafka Data:** In-memory (check Kafka-UI)
+- **Processed Data:** `data/silver/matches/`, `data/silver/players/`
+- **Analytics:** `data/gold/` (after Spark analytics)
+- **Cloud Backup:** MongoDB Atlas (if configured)
+
+## 🎓 Next Steps
+
+1. **Explore the Pipeline:**
+   - [PHASE2.md](PHASE2.md) - Data Ingestion
+   - [PHASE3.md](PHASE3.md) - Data Processing
+   - [PHASE4.md](PHASE4.md) - Data Storage
+   - [PHASE5.md](PHASE5.md) - Data Visualization
+
+2. **Customize:**
+   - Modify `src/ingestion/riot_producer.py` to fetch different players
+   - Update Spark transformations in `spark/streaming/`
+   - Enhance dashboard in `streamlit_kafka_dashboard.py`
+
+3. **Production Deployment:**
+   - Review [ARCHITECTURE.md](ARCHITECTURE.md) for scalability
+   - Configure persistent volumes in `docker-compose.yml`
+   - Set up monitoring and alerting
+
+## 🆘 Support
+
+- **Documentation:** See all `PHASE*.md` files
+- **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+- **MongoDB Setup:** [MONGODB_ATLAS_SETUP.md](MONGODB_ATLAS_SETUP.md)
+- **Project Structure:** [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+
+---
+
+**Happy Analytics! 🎮📊**
